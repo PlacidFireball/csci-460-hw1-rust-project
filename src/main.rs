@@ -30,6 +30,11 @@ impl Job {
         print!("Num: {}\tSize: {}\t#Pages: {}\n", self.job_num, self.size, self.page_req);
     }
 }
+impl Default for Job {
+    fn default() -> Self {
+        Job::init(0, 0)
+    }
+}
 
 /* PMT struct, provides core page management features for a Job */
 #[derive(Clone, Debug)]
@@ -146,29 +151,39 @@ fn main() {
                                       \n? - display this prompt
                                       \nexit - quit the pager");
     let PROMPT: String = String::from("\nPager (? for help)>");
-    let mut jobs: [Job; 20] = [Job::init(0, 0); 20];
+    let mut jobs: Vec<Job> = Vec::with_capacity(20);
+    for i in 0..jobs.len() {
+        jobs[i] = Job::init(0, 0);
+    }
     let mut memory: Memory = Memory::init();
 
     /* Beginning of Read, Execute, Print Loop */
     let mut user_input: String = input(&PROMPT);
     while true {
-        let mut tokenize = user_input.split(" ");
+        let mut tokenize = user_input.split_whitespace();
         let mut args: Vec<&str> = tokenize.collect();
-        if args[0] == "?" {
+        if args[0] == "exit" {
+
+        }
+        else if args[0] == "?" {
             print!("{}", HELP_STR);
         }
         else if args[0] == "print" {
             memory.show();
         }
         else {
-            let mut job_number: u32 = args[0].into_string().parse().unwrap();
-            let mut mem_requested: u32 = args[1].into_string().parse().unwrap();
+            let mut job_number: usize = args[0].to_string().parse().unwrap();
+            let mut mem_requested: u32 = args[1].to_string().parse().unwrap();
             if mem_requested == 0 {
-                jobs[job_number].pmt.remove_job(&mut memory);
+                for i in 0..jobs.len()-1 {
+                    if jobs[i].job_num == job_number as u32 {
+                        jobs[i].pmt.remove_job(&mut memory);
+                    }
+                }
             }
-            let mut new_job = Job::init(job_number, mem_requested);
+            let mut new_job = Job::init(job_number as u32, mem_requested);
             new_job.pmt.insert_job(&mut memory);
-            jobs[job_number] = new_job;
+            jobs.insert(jobs.len(), new_job);
         }
 
 
