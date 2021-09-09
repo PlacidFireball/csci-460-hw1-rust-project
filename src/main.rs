@@ -5,14 +5,6 @@ use crate::MemoryStatus::{FreePage, BusyPage};
 /* Constants */
 const PAGE_SIZE: u32 = 4096;
 const NUM_PAGES: u32 = 16;
-const HELP_STR: String = String::from("\nWelcome to the Pager! For help, type '?'",
-                                      "\n--Commands--",
-                                      "\n<job number> <bytes> - start a new job with a certain amount of memory",
-                                      "\n<job number> 0 - delete a job",
-                                      "\nprint - display the current memory status",
-                                      "\n? - display this prompt",
-                                      "\nexit - quit the pager");
-const PROMPT: String = String::from("\nPager (? for help)>");
 
 /* Job struct, provides core functionality for a job */
 #[derive(Clone, Debug)]
@@ -138,29 +130,50 @@ https://users.rust-lang.org/t/why-is-it-so-difficult-to-get-user-input-in-rust/2
 from user Yandros. It did not compile initially so I had to change it.
 A basic input function.
 */
-fn input (message: String) -> String {
-    print!("{}", message);
+fn input (message: &String) -> String {
+    print!("{}", *message);
     let mut return_string = String::new();
-    io::stdin:read_line(&mut ret).expect("Failed to read from stdin");
+    io::stdin().read_line(&mut return_string).expect("Failed to read from stdin");
     return_string
 }
 
 fn main() {
-    let mut jobs: Vec<Job> = Vec::with_capacity(10); // initialize a vector with capacity 10
+    let HELP_STR: String = String::from("\nWelcome to the Pager! For help, type '?
+                                      \n--Commands--
+                                      \n<job number> <bytes> - start a new job with a certain amount of memory
+                                      \n<job number> 0 - delete a job
+                                      \nprint - display the current memory status
+                                      \n? - display this prompt
+                                      \nexit - quit the pager");
+    let PROMPT: String = String::from("\nPager (? for help)>");
+    let mut jobs: [Job; 20] = [Job::init(0, 0); 20];
     let mut memory: Memory = Memory::init();
 
     /* Beginning of Read, Execute, Print Loop */
-    let mut user_input: String = input(PROMPT);
-    while 1 {
+    let mut user_input: String = input(&PROMPT);
+    while true {
         let mut tokenize = user_input.split(" ");
         let mut args: Vec<&str> = tokenize.collect();
-        for a in args {
-
+        if args[0] == "?" {
+            print!("{}", HELP_STR);
+        }
+        else if args[0] == "print" {
+            memory.show();
+        }
+        else {
+            let mut job_number: u32 = args[0].into_string().parse().unwrap();
+            let mut mem_requested: u32 = args[1].into_string().parse().unwrap();
+            if mem_requested == 0 {
+                jobs[job_number].pmt.remove_job(&mut memory);
+            }
+            let mut new_job = Job::init(job_number, mem_requested);
+            new_job.pmt.insert_job(&mut memory);
+            jobs[job_number] = new_job;
         }
 
 
 
-        user_input = input(PROMT);
+        user_input = input(&PROMPT);
     }
 
 }
