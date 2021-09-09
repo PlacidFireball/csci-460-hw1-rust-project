@@ -5,12 +5,12 @@ use crate::MemoryStatus::{FreePage, BusyPage};
 /* Constants */
 const PAGE_SIZE: u32 = 4096;
 const NUM_PAGES: u32 = 16;
-const HELP_STR: String = String::from("\nWelcome to the Pager! For help, type '?'"
-                                      "\n--Commands--"
-                                      "\n<job number> <bytes> - start a new job with a certain amount of memory"
-                                      "\n<job number> 0 - delete a job"
-                                      "\nprint - display the current memory status"
-                                      "\n? - display this prompt"
+const HELP_STR: String = String::from("\nWelcome to the Pager! For help, type '?'",
+                                      "\n--Commands--",
+                                      "\n<job number> <bytes> - start a new job with a certain amount of memory",
+                                      "\n<job number> 0 - delete a job",
+                                      "\nprint - display the current memory status",
+                                      "\n? - display this prompt",
                                       "\nexit - quit the pager");
 const PROMPT: String = String::from("\nPager (? for help)>");
 
