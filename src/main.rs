@@ -1,17 +1,29 @@
-/* Constants */
+/* Includes */
+use std::io;
+use std::io::*;
 use crate::MemoryStatus::{FreePage, BusyPage};
-
+/* Constants */
 const PAGE_SIZE: u32 = 4096;
 const NUM_PAGES: u32 = 16;
+const HELP_STR: String = String::from("\nWelcome to the Pager! For help, type '?'"
+                                      "\n--Commands--"
+                                      "\n<job number> <bytes> - start a new job with a certain amount of memory"
+                                      "\n<job number> 0 - delete a job"
+                                      "\nprint - display the current memory status"
+                                      "\n? - display this prompt"
+                                      "\nexit - quit the pager");
+const PROMPT: String = String::from("\nPager (? for help)>");
 
+/* Job struct, provides core functionality for a job */
 #[derive(Clone, Debug)]
 struct Job {
-    job_num: u32,
-    size: u32,
-    page_req: u32,
-    pmt: PMT
+    job_num: u32,   // job number
+    size: u32,      // the amount of memory requested
+    page_req: u32,  // how many pages the job will need
+    pmt: PMT        // the job's page manager
 }
 impl Job {
+    /* simple initializer function for the job */
     pub fn init(number: u32, memory_req: u32) -> Job {
         let mut page_req = memory_req/PAGE_SIZE+1;
         Job {
@@ -21,21 +33,24 @@ impl Job {
             pmt: PMT::init(page_req),
         }
     }
+    /* Job information printed off to the console */
     pub fn show(&self) {
         print!("Num: {}\tSize: {}\t#Pages: {}\n", self.job_num, self.size, self.page_req);
     }
 }
 
+/* PMT struct, provides core page management features for a Job */
 #[derive(Clone, Debug)]
 struct PMT {
-    job_page_num: Vec<u32>,
-    page_num_mem: Vec<i32>,
+    job_page_num: Vec<u32>, // page numbers for the job {0, 1, 2 .... n}
+    page_num_mem: Vec<i32>, // page numbers in memory, {-1 (error state), 0, 1, 2 ... NUM_PAGES}
 }
 impl PMT {
+    /* simple initializer function for the page manager */
     pub fn init(num_pages: u32) -> PMT {
-        let mut job_num_vec = vec![];
+        let mut job_num_vec = vec![];   // empty vectors
         let mut page_num_mem_vec = vec![];
-        for x in 0..num_pages {
+        for x in 0..num_pages { // push initialization values
             job_num_vec.push(x);
         }
         for x in 0..num_pages {
@@ -46,6 +61,7 @@ impl PMT {
             page_num_mem: page_num_mem_vec,
         }
     }
+    /* show function for the page manager to print debug info to the console*/
     pub fn show(&self) {
         for i in &self.job_page_num {
             print!("JP#: {}\t ML: {}\n", i, self.page_num_mem[(*i as usize)]);
@@ -53,11 +69,14 @@ impl PMT {
     }
     pub fn insert_job(&mut self, memory: &mut Memory) {
         if self.page_num_mem.len() < memory.available_pages as usize { // we have enough free pages
-            for i in 0..NUM_PAGES as usize {
-                if memory.status[i] == FreePage {
-                    memory.status[i] = BusyPage;
-                    memory.available_pages -= 1;
-                    self.page_num_mem[i] = -1;
+            let mut j: usize = 0;
+            for i in 0..(NUM_PAGES-1)as usize { // 0..15
+                if memory.status[i] == FreePage {   // if the page is free
+                    memory.status[i] = BusyPage;    // tell it it's busy
+                    memory.available_pages -= 1;    // decrement available pages
+                    self.page_num_mem[j] = i as i32;    // tell the page manager where the page is
+                    j += 1;     // keep track of what page we are dealing with
+                    if j == self.page_num_mem.len() { break; } // once all pages are in memory, exit
                 }
             }
         }
@@ -66,16 +85,20 @@ impl PMT {
         }
     }
     pub fn remove_job(&mut self, memory: &mut Memory) {
-        for i in &self.page_num_mem{
-            memory.status[*i as usize] = FreePage;
-            memory.available_pages += 1;
-            self.page_num_mem[*i as usize] = -1;
+        let mut j: usize = 0;
+        for i in 0..(NUM_PAGES-1) as usize {
+            if self.page_num_mem[j] == i as i32 { // if the page number belongs to this job
+                memory.status[i] = FreePage;    // free it
+                self.page_num_mem[j] = -1;  // set the page to a null value
+                j += 1; // keep track of the job number
+                if j == self.page_num_mem.len() { break; } // exit on all pages free
+            }
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum MemoryStatus {
+enum MemoryStatus { // simple enum for memory status
     FreePage,
     BusyPage
 }
@@ -101,15 +124,44 @@ impl Memory {
             available_pages: NUM_PAGES,
         }
     }
+    fn show(&self) {
+        for i in 0..(NUM_PAGES-1) as usize{
+            if self.status[i] == FreePage { println!("Page#{} - {}", i, String::from("Free")); }
+            else { println!("Page#{} - {}", i, String::from("Busy")); }
+        }
+    }
 }
 
+/*
+I found code for this function at
+https://users.rust-lang.org/t/why-is-it-so-difficult-to-get-user-input-in-rust/27444/3
+from user Yandros. It did not compile initially so I had to change it.
+A basic input function.
+*/
+fn input (message: String) -> String {
+    print!("{}", message);
+    let mut return_string = String::new();
+    io::stdin:read_line(&mut ret).expect("Failed to read from stdin");
+    return_string
+}
 
 fn main() {
     let mut jobs: Vec<Job> = Vec::with_capacity(10); // initialize a vector with capacity 10
     let mut memory: Memory = Memory::init();
-    jobs.push(Job::init(1, 20000));
-    let mut curr_job = jobs.pop().unwrap();
-    curr_job.pmt.insert_job(&mut memory);
+
+    /* Beginning of Read, Execute, Print Loop */
+    let mut user_input: String = input(PROMPT);
+    while 1 {
+        let mut tokenize = user_input.split(" ");
+        let mut args: Vec<&str> = tokenize.collect();
+        for a in args {
+
+        }
+
+
+
+        user_input = input(PROMT);
+    }
 
 }
 
