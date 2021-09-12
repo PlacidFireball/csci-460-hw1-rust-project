@@ -4,9 +4,9 @@ use crate::MemoryStatus::{BusyPage, FreePage};
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::*;
-use std::thread;
 use std::sync::mpsc;
 use std::sync::Mutex;
+use std::thread;
 use std::time::Duration;
 
 /* Constants */
@@ -24,7 +24,7 @@ impl Display for JobStatus {
         let print: String = match self {
             JobNotDone => String::from("Job Not Done"),
             JobWaiting => String::from("Job Waiting"),
-            JobDone => String::from("Job Done")
+            JobDone => String::from("Job Done"),
         };
         write!(f, "{}", print)
     }
@@ -146,10 +146,10 @@ impl Memory {
     fn init() -> Memory {
         let mut status_vec = vec![];
         let mut pages_vec = vec![];
-        for _i in 0..NUM_PAGES {
+        for _ in 0..NUM_PAGES {
             status_vec.push(FreePage);
         }
-        for _i in 0..NUM_PAGES {
+        for _ in 0..NUM_PAGES {
             pages_vec.push(PAGE_SIZE);
         }
         Memory {
@@ -184,31 +184,50 @@ fn input() -> String {
     return_string
 }
 
+fn counter() {
+
+}
+
 fn main() {
-    let help_str: String = String::from("\nWelcome to the Pager! For help, type '?
-                                      \n--Commands--
-                                      \n<job number> <bytes> - start a new job with a certain amount of memory
-                                      \n<job number> 0 - delete a job
-                                      \nprint - display the current memory status
-                                      \npjobs - display all jobs and their relevant info
-                                      \npjobs <job number> - display a job's info
-                                      \n? - display this prompt
-                                      \nexit - quit the pager");
-    let info: String = String::from("+-------------------------------------------------------------------------------\n\
+    let help_str: String = String::from("\n+---------------------------------------------------------------------\n\
+                                      | Welcome to the Pager! For help, type '?\n\
+                                      |                           --Commands--\n\
+                                      | <job number> <bytes> - start a new job with a certain amount of memory\n\
+                                      | <job number> 0 - delete a job\n\
+                                      | print - display the current memory status\n\
+                                      | pjobs - display all jobs and their relevant info\n\
+                                      | pjobs <job number> - display a job's info\n\
+                                      | ? - display this prompt\n\
+                                      | exit - quit the pager\n\
+                                      +---------------------------------------------------------------------\n");
+    let info: String = String::from(
+        "+-------------------------------------------------------------------------------\n\
     | Welcome to the Pager! I had a bear of a time getting threads to work\n\
     | in rust so I implemented virtual time in this way: every time a command is executed\n\
     | 500 \"lines of code\" are executed on a job. If you want to see how much progress a job\n\
     | a job has made you can use the pjobs command - try '?' for help.\n\
-    +-------------------------------------------------------------------------------");
+    +-------------------------------------------------------------------------------",
+    );
     println!("{}", info);
     let prompt: String = String::from("Pager (? for help)> ");
     let mut memory: Memory = Memory::init();
+
+    /*
+    TODO: Virtual time idea!!! On job insert into memory, spawn a thread that is chewing on it's progress timer
+    */
 
     /* Beginning of Read, Execute, Print Loop */
     let mut jobs: Vec<Job> = Vec::with_capacity(20);
     print!("{}", prompt);
     let mut user_input: String = input();
     loop {
+        let (tx, rx) = mpsc::channel();
+        let progress_thread = thread::spawn(move || {
+            loop {
+                let x : u32 = 0;
+                tx.send(x).unwrap();
+            }
+        });
         let tokenize = user_input.split_whitespace();
         let args: Vec<&str> = tokenize.collect();
         if args[0] == "exit" {
@@ -217,10 +236,25 @@ fn main() {
             print!("{}", help_str);
         } else if args[0] == "print" {
             memory.show();
-        }
-        else if args[0] == "pjobs" {
-            for i in 0..jobs.len() {
-                println!("{}", jobs[i]);
+        } else if args[0] == "pjobs" {
+            /* prints a specific job number */
+            if args.len() > 1 {
+                if !args[1].to_string().parse::<u32>().is_err() {
+                    let job_number: u32 = args[1].to_string().parse().unwrap();
+                    for i in 0..jobs.len() {
+                        if jobs[i].job_num == job_number {
+                            println!("{}", jobs[i]);
+                        }
+                    }
+                } else {
+                    println!("{}", "| Please provide a valid job number\n| Syntax: pjobs <job number (unsigned int)>");
+                }
+            }
+            /* if no job number has been provided, */
+            else {
+                for i in 0..jobs.len() {
+                    println!("{}", jobs[i]);
+                }
             }
         }
         /* check if both args can be converted into the necessary types (usize and u32) */
@@ -240,13 +274,11 @@ fn main() {
                         //jobs.remove(i); // remove the job from the jobs vector
                     }
                 }
-            }
-            else {
+            } else {
                 if new_job.pmt.insert_job(&mut memory) {
                     new_job.in_memory = true;
                     jobs.push(new_job);
-                }
-                else {
+                } else {
                     //let mut remove_job = jobs.pop().unwrap();
                     //remove_job.pmt.remove_job(&mut memory);
                     //remove_job.in_memory = false;
@@ -254,7 +286,16 @@ fn main() {
                 }
             }
         } else {
-            println!("{}", "Not a valid command, please try '?' for help.");
+            println!("{}", "| Not a valid command, please try '?' for help.");
+        }
+        for i in 0..jobs.len() {
+            /* Simulate progress on jobs */
+            jobs[i].progress += 500;
+            /* If the job has finished "executing", remove from memory */
+            if jobs[i].progress > jobs[i].size {
+                jobs[i].status = JobDone;
+                jobs[i].pmt.remove_job(&mut memory);
+            }
         }
         print!("{}", prompt);
         user_input = input(); // grab new user input
