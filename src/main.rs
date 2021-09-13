@@ -1,11 +1,10 @@
 /* Includes */
-use crate::JobStatus::{JobDone, JobNotDone, JobWaiting};
+use crate::JobStatus::{JobDone, JobNotDone, JobWaiting, JobRemoved};
 use crate::MemoryStatus::{BusyPage, FreePage};
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::*;
 use std::sync::mpsc;
-use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
@@ -18,6 +17,7 @@ enum JobStatus {
     JobNotDone,
     JobWaiting,
     JobDone,
+    JobRemoved
 }
 impl Display for JobStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -25,6 +25,7 @@ impl Display for JobStatus {
             JobNotDone => String::from("Job Not Done"),
             JobWaiting => String::from("Job Waiting"),
             JobDone => String::from("Job Done"),
+            JobRemoved => String::from("Job Removed"),
         };
         write!(f, "{}", print)
     }
@@ -36,6 +37,7 @@ struct Job {
     size: u32,     // the amount of memory requested
     page_req: u32, // how many pages the job will need
     progress: u32, // calculates how much of the job is done, updated with do_tick()
+    start_time: u32,
     status: JobStatus,
     in_memory: bool,
     pmt: PMT, // the job's page manager
@@ -43,12 +45,13 @@ struct Job {
 impl Job {
     /* simple initializer function for the job */
     pub fn init(number: u32, memory_req: u32) -> Job {
-        let mut page_req = memory_req / PAGE_SIZE + 1;
+        let page_req = memory_req / PAGE_SIZE + 1;
         Job {
             job_num: number,
             size: memory_req,
             page_req,
             progress: 0,
+            start_time: 0,
             status: JobNotDone,
             in_memory: false,
             pmt: PMT::init(page_req),
@@ -80,7 +83,7 @@ impl PMT {
             // push initialization values
             job_num_vec.push(x);
         }
-        for _x in 0..num_pages {
+        for _ in 0..num_pages {
             page_num_mem_vec.push(-1);
         }
         PMT {
@@ -89,11 +92,11 @@ impl PMT {
         }
     }
     /* show function for the page manager to print debug info to the console*/
-    pub fn show(&self) {
-        for i in &self.job_page_num {
-            print!("JP#: {}\t ML: {}\n", i, self.page_num_mem[(*i as usize)]);
-        }
-    }
+    //pub fn show(&self) {
+        //for i in &self.job_page_num {
+            //print!("JP#: {}\t ML: {}\n", i, self.page_num_mem[(*i as usize)]);
+        //}
+    //}
     pub fn insert_job(&mut self, memory: &mut Memory) -> bool {
         if self.page_num_mem.len() < memory.available_pages as usize {
             // we have enough free pages
@@ -120,6 +123,7 @@ impl PMT {
             if self.page_num_mem[j] == i as i32 {
                 // if the page number belongs to this job
                 memory.status[i] = FreePage; // free it
+                memory.available_pages += 1;
                 self.page_num_mem[j] = -1; // set the page to a null value
                 j += 1; // keep track of the job number
                 if j == self.page_num_mem.len() {
@@ -184,18 +188,32 @@ fn input() -> String {
     return_string
 }
 
-fn counter() {
-
-}
+// TODO: Bugs | Insert 1 page job with 1 page available
 
 fn main() {
+    /* This thread is just treated like a counter, it just counts how many lines of code are
+    executed in a given time frame. It's just an arbitrary number I chose. Because program
+    execution halts on user input, it has to be a little high for execution time to make any sort of
+    sense. */
+    let (tx, rx) = mpsc::channel(); // create a new transmiter (tx) and receiver (rx)
+    let prog= thread::spawn(move || {
+        let mut x: u32 = 0;
+        loop {
+            x+=333;                              // increment our counter
+            tx.send(x.clone()).unwrap();     // send the data off to the main thread
+            thread::sleep(Duration::from_nanos(1)); // sleep to hand off execution just in case
+        }
+    });
+    /* Strings used for program info + help */
     let help_str: String = String::from("\n+---------------------------------------------------------------------\n\
                                       | Welcome to the Pager! For help, type '?\n\
                                       |                           --Commands--\n\
                                       | <job number> <bytes> - start a new job with a certain amount of memory\n\
                                       | <job number> 0 - delete a job\n\
+                                      | insertw - attempt to insert waiting jobs into memory\n\
                                       | print - display the current memory status\n\
                                       | pjobs - display all jobs and their relevant info\n\
+                                      | pjobs-waiting - display all waiting jobs\n\
                                       | pjobs <job number> - display a job's info\n\
                                       | ? - display this prompt\n\
                                       | exit - quit the pager\n\
@@ -208,42 +226,33 @@ fn main() {
     | a job has made you can use the pjobs command - try '?' for help.\n\
     +-------------------------------------------------------------------------------",
     );
-    println!("{}", info);
-    let prompt: String = String::from("Pager (? for help)> ");
-    let mut memory: Memory = Memory::init();
+    println!("{}", info);                                           // print off the info string
 
-    /*
-    TODO: Virtual time idea!!! On job insert into memory, spawn a thread that is chewing on it's progress timer
-    */
+    let prompt: String = String::from("Pager (? for help)> ");   // prompt string
 
     /* Beginning of Read, Execute, Print Loop */
-    let mut jobs: Vec<Job> = Vec::with_capacity(20);
-    print!("{}", prompt);
+    let mut memory: Memory = Memory::init();                        // initialize our dumby memory
+    let mut jobs: Vec<Job> = Vec::with_capacity(10);        // vector of jobs to store info about them
+    print!("{}", prompt);                                           // display our prompt
     let mut user_input: String = input();
     loop {
-        let (tx, rx) = mpsc::channel();
-        let progress_thread = thread::spawn(move || {
-            loop {
-                let x : u32 = 0;
-                tx.send(x).unwrap();
-            }
-        });
-        let tokenize = user_input.split_whitespace();
-        let args: Vec<&str> = tokenize.collect();
-        if args[0] == "exit" {
-            break;
-        } else if args[0] == "?" {
-            print!("{}", help_str);
-        } else if args[0] == "print" {
+        let tokenize = user_input.split_whitespace(); // tokenize the string on whitespace
+        let args: Vec<&str> = tokenize.collect();                   // collect the tokens
+        if args[0] == "exit" {                                      // check for exit
+            prog.join().expect("Could not join threads");      // join the thread
+            break;                                                  // exit the loop
+        } else if args[0] == "?" {                                  // check for help
+            print!("{}", help_str);                                 // display the help string
+        } else if args[0] == "print" {                              // show the pages in memory and if the are busy or not
             memory.show();
-        } else if args[0] == "pjobs" {
+        } else if args[0] == "pjobs" {                              // print off specific job information
             /* prints a specific job number */
             if args.len() > 1 {
-                if !args[1].to_string().parse::<u32>().is_err() {
-                    let job_number: u32 = args[1].to_string().parse().unwrap();
-                    for i in 0..jobs.len() {
+                if !args[1].to_string().parse::<u32>().is_err() {   // check if we can convert the job number to an int
+                    let job_number: u32 = args[1].to_string().parse().unwrap(); // parse it if we can
+                    for i in 0..jobs.len() {                  // check for the relevant job
                         if jobs[i].job_num == job_number {
-                            println!("{}", jobs[i]);
+                            println!("{}", jobs[i]);                // print it off
                         }
                     }
                 } else {
@@ -252,12 +261,24 @@ fn main() {
             }
             /* if no job number has been provided, */
             else {
-                for i in 0..jobs.len() {
+                for i in 0..jobs.len() {                    // otherwise we just print off all the jobs
                     println!("{}", jobs[i]);
                 }
             }
         }
-        /* check if both args can be converted into the necessary types (usize and u32) */
+        else if args[0] == "insertw" {
+            for i in 0..jobs.len() {
+                if jobs[i].status == JobWaiting {
+                    if jobs[i].pmt.insert_job(&mut memory) {
+                        print!("Insert success! Job {} inserted into memory!", jobs[i].job_num);
+                        jobs[i].status = JobNotDone;
+                        jobs[i].in_memory = true;
+                    }
+                }
+
+            }
+        }
+        /* job insert and deletion */
         else if !args[0].to_string().parse::<usize>().is_err()
             && !args[1].to_string().parse::<u32>().is_err()
         {
@@ -271,33 +292,38 @@ fn main() {
                         // search for the correct job
                         jobs[i].pmt.remove_job(&mut memory); // remove it when we find it
                         jobs[i].in_memory = false;
-                        //jobs.remove(i); // remove the job from the jobs vector
+                        jobs[i].status = JobRemoved;
                     }
                 }
             } else {
-                if new_job.pmt.insert_job(&mut memory) {
+                if new_job.pmt.insert_job(&mut memory) {            // if we can successfully insert the job into memory
                     new_job.in_memory = true;
-                    jobs.push(new_job);
+                    new_job.start_time = rx.recv().unwrap();        // set our start execution time
+                    jobs.push(new_job);                       // push the job onto the jobs vector
                 } else {
-                    //let mut remove_job = jobs.pop().unwrap();
-                    //remove_job.pmt.remove_job(&mut memory);
-                    //remove_job.in_memory = false;
-                    //remove_job.status = JobWaiting;
+                    let mut remove_job = jobs.pop().unwrap();   // retrieve the first job inserted into memory
+                    remove_job.pmt.remove_job(&mut memory);
+                    remove_job.in_memory = false;
+                    remove_job.status = JobWaiting;
+                    jobs.push(remove_job);
                 }
             }
         } else {
             println!("{}", "| Not a valid command, please try '?' for help.");
         }
         for i in 0..jobs.len() {
-            /* Simulate progress on jobs */
-            jobs[i].progress += 500;
-            /* If the job has finished "executing", remove from memory */
-            if jobs[i].progress > jobs[i].size {
-                jobs[i].status = JobDone;
-                jobs[i].pmt.remove_job(&mut memory);
+            /* calculate how many "lines of code" have been executed on each job */
+            if jobs[i].status == JobNotDone {
+                jobs[i].progress = rx.recv().unwrap() - jobs[i].start_time;
+                if jobs[i].progress > jobs[i].size {
+                    jobs[i].status = JobDone;
+                    jobs[i].pmt.remove_job(&mut memory);
+                    jobs[i].progress = jobs[i].size;
+                }
             }
         }
         print!("{}", prompt);
         user_input = input(); // grab new user input
     }
+
 }
