@@ -91,12 +91,7 @@ impl PMT {
             page_num_mem: page_num_mem_vec,
         }
     }
-    /* show function for the page manager to print debug info to the console*/
-    //pub fn show(&self) {
-        //for i in &self.job_page_num {
-            //print!("JP#: {}\t ML: {}\n", i, self.page_num_mem[(*i as usize)]);
-        //}
-    //}
+
     pub fn insert_job(&mut self, memory: &mut Memory) -> bool {
         if self.page_num_mem.len() < memory.available_pages as usize {
             // we have enough free pages
@@ -196,7 +191,7 @@ fn main() {
     execution halts on user input, it has to be a little high for execution time to make any sort of
     sense. */
     let (tx, rx) = mpsc::channel(); // create a new transmiter (tx) and receiver (rx)
-    let prog= thread::spawn(move || {
+    let _ = thread::spawn(move || {
         let mut x: u32 = 0;
         loop {
             x+=333;                              // increment our counter
@@ -239,7 +234,6 @@ fn main() {
         let tokenize = user_input.split_whitespace(); // tokenize the string on whitespace
         let args: Vec<&str> = tokenize.collect();                   // collect the tokens
         if args[0] == "exit" {                                      // check for exit
-            prog.join().expect("Could not join threads");      // join the thread
             break;                                                  // exit the loop
         } else if args[0] == "?" {                                  // check for help
             print!("{}", help_str);                                 // display the help string
@@ -324,6 +318,6 @@ fn main() {
         }
         print!("{}", prompt);
         user_input = input(); // grab new user input
-    }
+    } /* End Loop */
 
 }
