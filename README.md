@@ -6,10 +6,8 @@ I converted this code over from a C source file because I got tired of SIGSEGV, 
 
 A quick note, my github ettiquete is quite bad so sometimes I commit changes that won't compile. Hopefully when you run into this it compiles.
 ### Libraries Used
-* Futures
 * Standard Library
 ### Concepts used
-* Asynchronus programming (see `do_tick()`)
 * Removing jobs from memory when memory is full using a First In, First Out algorithm
 * Object-Oriented (ish) programming in Rust
 * Tokenizing strings in Rust
