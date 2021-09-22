@@ -1,0 +1,53 @@
+Pager (? for help)> 1 35000
+Pager (? for help)> 2 4096
+Pager (? for help)> 3 4096
+Pager (? for help)> 4 4096
+Pager (? for help)> 5 4096
+Pager (? for help)> 6 4096
+Pager (? for help)> 7 4096
+Pager (? for help)> 8 4096
+Pager (? for help)> 2 0
+Pager (? for help)> 4 0
+Pager (? for help)> 6 0
+Pager (? for help)> 8 0
+Pager (? for help)> 9 12000
+Pager (? for help)> 10 24000
+Pager (? for help)> print
+| Page #0:	Busy	Job #: 10 Page #: 0
+| Page #1:	Busy	Job #: 10 Page #: 1
+| Page #2:	Busy	Job #: 10 Page #: 2
+| Page #3:	Busy	Job #: 10 Page #: 3
+| Page #4:	Busy	Job #: 10 Page #: 4
+| Page #5:	Busy	Job #: 10 Page #: 5
+| Page #6:	Free
+| Page #7:	Free
+| Page #8:	Free
+| Page #9:	Busy	Job #: 9 Page #: 0
+| Page #10:	Busy	Job #: 3 Page #: 0
+| Page #11:	Busy	Job #: 9 Page #: 1
+| Page #12:	Busy	Job #: 5 Page #: 0
+| Page #13:	Busy	Job #: 9 Page #: 2
+| Page #14:	Busy	Job #: 7 Page #: 0
+| Page #15:	Free
+Pager (? for help)> pjobs
+| Num: 2	Size: 4096	#Pages: 1	Progress: 1664	 Status: Job Removed
+| Page Number(s): -1 
+| Num: 3	Size: 4096	#Pages: 1	Progress: 3027	 Status: Job Not Done
+| Page Number(s): 10 
+| Num: 4	Size: 4096	#Pages: 1	Progress: 1386	 Status: Job Removed
+| Page Number(s): -1 
+| Num: 5	Size: 4096	#Pages: 1	Progress: 2527	 Status: Job Not Done
+| Page Number(s): 12 
+| Num: 6	Size: 4096	#Pages: 1	Progress: 896	 Status: Job Removed
+| Page Number(s): -1 
+| Num: 7	Size: 4096	#Pages: 1	Progress: 1942	 Status: Job Not Done
+| Page Number(s): 14 
+| Num: 8	Size: 4096	#Pages: 1	Progress: 553	 Status: Job Removed
+| Page Number(s): -1 
+| Num: 9	Size: 12000	#Pages: 3	Progress: 522	 Status: Job Not Done
+| Page Number(s): 9 11 13 
+| Num: 1	Size: 35000	#Pages: 9	Progress: 3162	 Status: Job Waiting
+| Page Number(s): -1 -1 -1 -1 -1 -1 -1 -1 -1 
+| Num: 10	Size: 24000	#Pages: 6	Progress: 125	 Status: Job Not Done
+| Page Number(s): 0 1 2 3 4 5 
+Pager (? for help)> exit

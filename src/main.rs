@@ -1,3 +1,31 @@
+/*
+Hello! Welcome to my Project.
+This code was written by Jared Weiss for Assignment 1 of CSCI 460: Operating Systems.
+It implements a memory management system based on paging. Most of the info about
+the project can be found by running it! So, let's get into that.
+
+I apologize for the verboseness of this code, I would normally have split it up into multiple
+files, but I wasn't sure if that was allowed.
+
+This is written in rust, which can be compiled using 'cargo'. To get access to cargo,
+we need to install rust.
+
+The best way to do this is to navigate to their website:
+https://www.rust-lang.org/
+Once you have rust installed, you can compile and run this project using 'cargo run'
+OR
+If you don't want to use cargo, this file can be converted into a binary program with
+'rustc -o pager weiss-jared' (produces an executable called pager, which can be run)
+Honestly, this one is probably easiest for you.
+
+Otherwise, if you have questions feel free to email me:
+jared.lee.weiss@gmail.com
+
+Included in the project submission is this source file, and sample input/output.
+This project is also on Github! Link:
+https://github.com/PlacidFireball/csci-460-hw1-rust-project
+*/
+
 /* Includes */
 use crate::JobStatus::{JobDone, JobNotDone, JobRemoved, JobWaiting};
 use crate::MemoryStatus::{BusyPage, FreePage};
@@ -24,7 +52,7 @@ impl Display for JobStatus {
         let print: String = match self {
             JobNotDone => String::from("Job Not Done"),
             JobWaiting => String::from("Job Waiting"),
-            JobDone => String::from("Job Done"),
+            JobDone    => String::from("Job Done"),
             JobRemoved => String::from("Job Removed"),
         };
         write!(f, "{}", print)
@@ -134,6 +162,13 @@ impl PMT {
             }
         }
     }
+
+    pub fn is_on_page(&self, page_number: i32) -> u32 {
+        if self.page_num_mem.contains(&(page_number as i32)) {
+            return self.page_num_mem.iter().position(|&num| num == page_number).unwrap() as u32;
+        }
+        u32::MAX
+    }
 }
 impl Display for PMT {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -178,12 +213,24 @@ impl Memory {
             available_pages: NUM_PAGES,
         }
     }
-    fn show(&self) {
+    fn show(&self, job_vec: &Vec<Job>) {
+        let mut print_job: Job = Job::init(0, 0);
         for i in 0..NUM_PAGES as usize {
+            for j in 0..job_vec.len() {
+                if job_vec[j].pmt.is_on_page(i as i32) != u32::MAX {
+                    print_job = job_vec[j].clone();
+                    break;
+                }
+            }
             if self.status[i] == FreePage {
-                println!("Page #{}:\t{}", i, String::from("Free"));
+                println!("| Page #{}:\t{}", i, String::from("Free"));
             } else {
-                println!("Page #{}:\t{}", i, String::from("Busy"));
+                println!("| Page #{}:\t{}\tJob #: {} Page #: {}",
+                         i,
+                         String::from("Busy"),
+                         print_job.job_num,
+                         print_job.pmt.is_on_page(i as i32)
+                );
             }
         }
     }
@@ -205,10 +252,7 @@ fn input() -> String {
 }
 
 fn repl() {
-    /* This thread is just treated like a counter, it just counts how many lines of code are
-    executed in a given time frame. It's just an arbitrary number I chose. Because program
-    execution halts on user input, it has to be a little high for execution time to make any sort of
-    sense. */
+    /* Counter thread, used for time-keeping */
     let (tx, rx) = mpsc::channel(); // create a new transmiter (tx) and receiver (rx)
     let _counter = thread::spawn(move || {
         let mut x: u32 = 0;
@@ -227,23 +271,12 @@ fn repl() {
                                       | insertw - attempt to insert waiting jobs into memory\n\
                                       | print - display the current memory status\n\
                                       | pjobs - display all jobs and their relevant info\n\
-                                      | pjobs-waiting - display all waiting jobs\n\
                                       | pjobs <job number> - display a job's info\n\
                                       | ? - display this prompt\n\
                                       | exit - quit the pager\n\
                                       +---------------------------------------------------------------------\n");
-    let info: String = String::from(
-        "+-------------------------------------------------------------------------------\n\
-    | Welcome to the Pager! I had a bear of a time getting threads to work\n\
-    | in rust so I implemented virtual time in this way: every time a command is executed\n\
-    | <SOME NUMBER> \"lines of code\" are executed on a job. If you want to see how much progress a job\n\
-    | a job has made you can use the pjobs command - try '?' for help.\n\
-    +-------------------------------------------------------------------------------",
-    );
-    println!("{}", info); // print off the info string
-
     let prompt: String = String::from("Pager (? for help)> "); // prompt string
-                                                               /* Beginning of Read, Execute, Print Loop */
+    /* Beginning of Read, Execute, Print Loop */
     let mut memory: Memory = Memory::init(); // initialize our dummy memory
     let mut jobs: Vec<Job> = Vec::with_capacity(10); // vector of jobs to store info about them
     print!("{}", prompt); // display our prompt
@@ -256,22 +289,17 @@ fn repl() {
             .collect::<Vec<u32>>()
             .last()
             .expect("Called last with None Value");
-        //println!("{}", most_recent_time);
 
         /* string parsing */
         let tokenize = user_input.split_whitespace(); // tokenize the string on whitespace
         let args: Vec<&str> = tokenize.collect(); // collect the tokens
         if args[0] == "exit" {
-            // check for exit
             break; // exit the loop
         } else if args[0] == "?" {
-            // check for help
             print!("{}", help_str); // display the help string
         } else if args[0] == "print" {
-            // show the pages in memory and if the are busy or not
-            memory.show();
+            memory.show(&jobs);
         } else if args[0] == "pjobs" {
-            // print off specific job information
             /* prints a specific job number */
             if args.len() > 1 {
                 if !args[1].to_string().parse::<u32>().is_err() {
@@ -339,7 +367,7 @@ fn repl() {
                         remove_job.pmt.remove_job(&mut memory);
                         remove_job.in_memory = false;
                         remove_job.status = JobWaiting;
-                        jobs.push(remove_job);
+                        jobs.push(remove_job); // push the job to the back of the queue
                         /* as soon as there is, insert the new job */
                         if memory.available_pages >= new_job.page_req {
                             new_job.pmt.insert_job(&mut memory);
@@ -354,8 +382,8 @@ fn repl() {
         } else {
             println!("{}", "| Not a valid command, please try '?' for help.");
         }
+        /* calculate how many "lines of code" have been executed on each job */
         for i in 0..jobs.len() {
-            /* calculate how many "lines of code" have been executed on each job */
             if jobs[i].status == JobNotDone {
                 jobs[i].progress = most_recent_time - jobs[i].start_time;
                 if jobs[i].progress > jobs[i].size {
